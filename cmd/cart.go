@@ -6,8 +6,6 @@ import (
 	"strconv"
 	"text/tabwriter"
 
-	"github.com/hellman/coop-cli/internal/api"
-	"github.com/hellman/coop-cli/internal/auth"
 	"github.com/spf13/cobra"
 )
 
@@ -140,16 +138,3 @@ func init() {
 	rootCmd.AddCommand(cartCmd)
 }
 
-func authenticatedClient() (*api.Client, error) {
-	e, p, err := getCredentials()
-	if err != nil {
-		return nil, err
-	}
-
-	session, err := auth.Login(e, p)
-	if err != nil {
-		return nil, fmt.Errorf("login failed: %w", err)
-	}
-
-	return api.NewClient(session, getStoreID()), nil
-}

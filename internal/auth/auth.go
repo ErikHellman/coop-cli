@@ -16,15 +16,18 @@ const (
 	baseURLLogin = "https://login.coop.se"
 )
 
-// Session holds the authenticated session state.
+var (
+	formActionRe = regexp.MustCompile(`action=['"]([^'"]+)['"]`)
+	formInputRe  = regexp.MustCompile(`<input type=['"]hidden['"] name=['"]([^'"]+)['"] value=['"]([^'"]*)['"]`)
+)
+
 type Session struct {
 	Token          string
 	ShoppingUserID string
 	Client         *http.Client
 }
 
-// SpaToken is the response from /api/spa/token.
-type SpaToken struct {
+type spaToken struct {
 	Token          string `json:"token"`
 	ShoppingUserID string `json:"shoppingUserId"`
 	UserID         string `json:"userId"`
@@ -50,7 +53,6 @@ func Login(email, password string) (*Session, error) {
 		return nil, fmt.Errorf("creating cookie jar: %w", err)
 	}
 
-	// Use a client that stops on redirects so we can inspect them.
 	noRedirect := &http.Client{
 		Jar: jar,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -58,7 +60,6 @@ func Login(email, password string) (*Session, error) {
 		},
 	}
 
-	// Follows redirects normally.
 	followRedirect := &http.Client{
 		Jar: jar,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -80,9 +81,7 @@ func Login(email, password string) (*Session, error) {
 		return nil, fmt.Errorf("reading default-login: %w", err)
 	}
 
-	// Step 2: Parse the auto-submit form and POST to login.coop.se/connect/authorize.
-	// This redirects to login.coop.se/logga-in?ReturnUrl=/connect/authorize/callback?...
-	// We need to capture the ReturnUrl from the final redirect URL.
+	// Step 2: POST to login.coop.se/connect/authorize, which redirects to the login page.
 	formAction, formData, err := parseHiddenForm(string(body))
 	if err != nil {
 		return nil, fmt.Errorf("parsing authorize form: %w", err)
@@ -94,7 +93,7 @@ func Login(email, password string) (*Session, error) {
 	}
 	resp.Body.Close()
 
-	// Extract the ReturnUrl from the final URL we landed on.
+	// Extract the ReturnUrl from the login page URL we landed on.
 	returnURL := resp.Request.URL.Query().Get("ReturnUrl")
 	if returnURL == "" {
 		return nil, fmt.Errorf("no ReturnUrl found in redirect URL: %s", resp.Request.URL)
@@ -112,43 +111,39 @@ func Login(email, password string) (*Session, error) {
 		return nil, fmt.Errorf("getting login state: %w", err)
 	}
 
-	// Step 5: POST credentials to login.
+	// Step 5: POST credentials.
 	err = postLogin(noRedirect, email, password, xsrfToken, state.LoginRequest.ClientID)
 	if err != nil {
 		return nil, fmt.Errorf("posting login: %w", err)
 	}
 
-	// Step 6: Follow the returnUrl to complete the OIDC authorize callback.
-	// This returns a form_post HTML with code+id_token that posts to www.coop.se/signin-oidc.
+	// Step 6: Complete OIDC flow by following the authorize callback.
 	err = completeOIDCFlow(noRedirect, followRedirect, returnURL)
 	if err != nil {
 		return nil, fmt.Errorf("completing OIDC flow: %w", err)
 	}
 
 	// Step 7: Get the SPA token.
-	spaToken, err := getSpaToken(followRedirect)
+	token, err := getSpaToken(followRedirect)
 	if err != nil {
 		return nil, fmt.Errorf("getting SPA token: %w", err)
 	}
 
 	return &Session{
-		Token:          spaToken.Token,
-		ShoppingUserID: spaToken.ShoppingUserID,
+		Token:          token.Token,
+		ShoppingUserID: token.ShoppingUserID,
 		Client:         followRedirect,
 	}, nil
 }
 
 func parseHiddenForm(html string) (string, url.Values, error) {
-	actionRe := regexp.MustCompile(`action=['"]([^'"]+)['"]`)
-	actionMatch := actionRe.FindStringSubmatch(html)
+	actionMatch := formActionRe.FindStringSubmatch(html)
 	if actionMatch == nil {
 		return "", nil, fmt.Errorf("no form action found")
 	}
 	action := strings.ReplaceAll(actionMatch[1], "&amp;", "&")
 
-	inputRe := regexp.MustCompile(`<input type=['"]hidden['"] name=['"]([^'"]+)['"] value=['"]([^'"]*)['"]`)
-	matches := inputRe.FindAllStringSubmatch(html, -1)
-
+	matches := formInputRe.FindAllStringSubmatch(html, -1)
 	values := url.Values{}
 	for _, m := range matches {
 		values.Set(m[1], m[2])
@@ -240,8 +235,6 @@ func completeOIDCFlow(noRedirect, followRedirect *http.Client, returnURL string)
 		return fmt.Errorf("no valid returnUrl for OIDC callback")
 	}
 
-	// GET the authorize callback URL on login.coop.se.
-	// This returns either a redirect or a form_post HTML page.
 	fullURL := returnURL
 	if !strings.HasPrefix(returnURL, "http") {
 		fullURL = baseURLLogin + returnURL
@@ -257,21 +250,12 @@ func completeOIDCFlow(noRedirect, followRedirect *http.Client, returnURL string)
 		return err
 	}
 
-	// Handle form_post: the response is an HTML form that auto-submits to signin-oidc.
-	if resp.StatusCode == http.StatusOK && strings.Contains(string(body), "signin-oidc") {
-		action, formData, err := parseHiddenForm(string(body))
-		if err != nil {
-			return fmt.Errorf("parsing signin-oidc form: %w", err)
-		}
-		resp, err = followRedirect.PostForm(action, formData)
-		if err != nil {
-			return fmt.Errorf("posting signin-oidc: %w", err)
-		}
-		resp.Body.Close()
-		return nil
+	// Handle form_post response directly.
+	if resp.StatusCode == http.StatusOK {
+		return submitSigninOIDCForm(followRedirect, string(body))
 	}
 
-	// Handle redirect response: follow it, it may lead to a form_post page.
+	// Handle redirect, then check for form_post.
 	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
 		location := resp.Header.Get("Location")
 		if location == "" {
@@ -291,25 +275,27 @@ func completeOIDCFlow(noRedirect, followRedirect *http.Client, returnURL string)
 			return err
 		}
 
-		if strings.Contains(string(body), "signin-oidc") {
-			action, formData, err := parseHiddenForm(string(body))
-			if err != nil {
-				return fmt.Errorf("parsing signin-oidc form after redirect: %w", err)
-			}
-			resp, err = followRedirect.PostForm(action, formData)
-			if err != nil {
-				return fmt.Errorf("posting signin-oidc after redirect: %w", err)
-			}
-			resp.Body.Close()
-			return nil
-		}
+		return submitSigninOIDCForm(followRedirect, string(body))
 	}
 
-	return fmt.Errorf("unexpected response from authorize callback (status %d): %s", resp.StatusCode, string(body[:min(len(body), 500)]))
+	return fmt.Errorf("unexpected response from authorize callback (status %d)", resp.StatusCode)
 }
 
-func getSpaToken(client *http.Client) (*SpaToken, error) {
-	resp, err := client.Get(fmt.Sprintf("%s/api/spa/token?_=%d", baseURLCoop, 0))
+func submitSigninOIDCForm(client *http.Client, html string) error {
+	action, formData, err := parseHiddenForm(html)
+	if err != nil {
+		return fmt.Errorf("parsing signin-oidc form: %w", err)
+	}
+	resp, err := client.PostForm(action, formData)
+	if err != nil {
+		return fmt.Errorf("posting signin-oidc: %w", err)
+	}
+	resp.Body.Close()
+	return nil
+}
+
+func getSpaToken(client *http.Client) (*spaToken, error) {
+	resp, err := client.Get(baseURLCoop + "/api/spa/token?_=0")
 	if err != nil {
 		return nil, err
 	}
@@ -320,7 +306,7 @@ func getSpaToken(client *http.Client) (*SpaToken, error) {
 		return nil, fmt.Errorf("failed to get SPA token (status %d): %s", resp.StatusCode, string(body))
 	}
 
-	var token SpaToken
+	var token spaToken
 	if err := json.NewDecoder(resp.Body).Decode(&token); err != nil {
 		return nil, fmt.Errorf("decoding SPA token: %w", err)
 	}

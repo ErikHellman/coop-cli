@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/hellman/coop-cli/internal/models"
+	"github.com/ErikHellman/coop-cli/internal/models"
 )
 
 // SearchProducts searches for products by query.
 func (c *Client) SearchProducts(query string, take int) (*models.SearchResponse, error) {
 	params := url.Values{}
-	params.Set("api-version", "v1")
+	params.Set("api-version", APIVersion)
 	params.Set("store", c.storeID)
 	params.Set("groups", "CUSTOMER_PRIVATE")
 	params.Set("device", "desktop")

@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/hellman/coop-cli/cmd"
+	"github.com/ErikHellman/coop-cli/cmd"
 )
 
 func main() {

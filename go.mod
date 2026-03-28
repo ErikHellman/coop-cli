@@ -1,4 +1,4 @@
-module github.com/hellman/coop-cli
+module github.com/ErikHellman/coop-cli
 
 go 1.24.2
 

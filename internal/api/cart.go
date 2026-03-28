@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/hellman/coop-cli/internal/models"
+	"github.com/ErikHellman/coop-cli/internal/models"
 )
 
 // GetCart returns the current cart contents.

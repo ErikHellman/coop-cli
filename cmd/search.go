@@ -5,9 +5,7 @@ import (
 	"os"
 	"text/tabwriter"
 
-	"github.com/hellman/coop-cli/internal/api"
-	"github.com/hellman/coop-cli/internal/auth"
-	"github.com/hellman/coop-cli/internal/models"
+	"github.com/ErikHellman/coop-cli/internal/models"
 	"github.com/spf13/cobra"
 )
 
@@ -19,21 +17,12 @@ var searchCmd = &cobra.Command{
 	Long:  "Search for products on Coop.se and display their details.",
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		query := args[0]
-
-		e, p, err := getCredentials()
+		client, err := authenticatedClient()
 		if err != nil {
 			return err
 		}
 
-		session, err := auth.Login(e, p)
-		if err != nil {
-			return fmt.Errorf("login failed: %w", err)
-		}
-
-		client := api.NewClient(session, getStoreID())
-
-		result, err := client.SearchProducts(query, searchLimit)
+		result, err := client.SearchProducts(args[0], searchLimit)
 		if err != nil {
 			return fmt.Errorf("search failed: %w", err)
 		}
@@ -60,17 +49,15 @@ func printProducts(products []models.Product) {
 	fmt.Fprintln(w, "--\t----\t------------\t----\t-----\t-------\t--------")
 
 	for _, p := range products {
-		category := models.CategoryPath(p.NavCategories)
-		comparePrice := fmt.Sprintf("%.2f %s", p.ComparativePriceData.B2CPrice, p.ComparativePriceUnit.Text)
-
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%.2f kr\t%s\t%s\n",
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%.2f kr\t%.2f %s\t%s\n",
 			p.ID,
 			p.Name,
 			p.ManufacturerName,
 			p.PackageSizeInfo,
 			p.SalesPriceData.B2CPrice,
-			comparePrice,
-			category,
+			p.ComparativePriceData.B2CPrice,
+			p.ComparativePriceUnit.Text,
+			models.CategoryPath(p.NavCategories),
 		)
 	}
 	w.Flush()
