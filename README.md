@@ -22,21 +22,42 @@ irm https://raw.githubusercontent.com/ErikHellman/coop-cli/main/install.ps1 | ie
 go install github.com/ErikHellman/coop-cli@latest
 ```
 
-## Authentication
+## Configuration
+
+### Credentials
 
 All commands except `stores` and `update` require a Coop account. Provide credentials via flags or environment variables:
 
 ```bash
 # Flags
-coop-cli --email user@example.com --password secret search "mjölk"
+coop-cli --email user@example.com --password secret --store 251300 search "mjölk"
 
-# Environment variables
+# Environment variables (recommended)
 export COOP_EMAIL=user@example.com
 export COOP_PASSWORD=secret
-coop-cli search "mjölk"
+export COOP_STORE=251300
+```
+
+### Store ID
+
+A store ID is required for product search and cart commands. Find your store first:
+
+```bash
+coop-cli stores Uppsala
+```
+
+Then use the `STORE ID` from the output with `--store` or `COOP_STORE`:
+
+```bash
+coop-cli --store 251300 search "kaffe"
+
+# Or set it once via environment variable
+export COOP_STORE=251300
 ```
 
 ## Usage
+
+The examples below assume `COOP_EMAIL`, `COOP_PASSWORD`, and `COOP_STORE` are set as environment variables.
 
 ### Search for products
 
@@ -66,20 +87,7 @@ coop-cli stores Uppsala
 coop-cli stores Göteborg
 ```
 
-Search by city, store name, or address. The `STORE ID` column is the value to use with `--store`. This command does not require login.
-
-### Select a store
-
-A store ID is required for product search and cart commands. Find your store first, then pass its ID:
-
-```bash
-coop-cli stores Uppsala                     # Find your store
-coop-cli --store 251300 search "kaffe"      # Use the STORE ID from the output
-
-# Or set it once via environment variable
-export COOP_STORE=251300
-coop-cli search "kaffe"
-```
+Search by city, store name, or address. This command does not require login or a store ID.
 
 ### Update
 
