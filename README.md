@@ -1,5 +1,9 @@
 # coop-cli
 
+[![Test](https://github.com/ErikHellman/coop-cli/actions/workflows/test.yml/badge.svg)](https://github.com/ErikHellman/coop-cli/actions/workflows/test.yml)
+[![Release](https://github.com/ErikHellman/coop-cli/actions/workflows/release.yml/badge.svg)](https://github.com/ErikHellman/coop-cli/actions/workflows/release.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ErikHellman/coop-cli)](https://goreportcard.com/report/github.com/ErikHellman/coop-cli)
+
 A command-line tool for interacting with [Coop.se](https://www.coop.se) online grocery shopping. Search for products, manage your shopping cart, and find stores — all from the terminal.
 
 ## Installation
