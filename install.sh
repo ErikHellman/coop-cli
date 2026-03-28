@@ -2,7 +2,7 @@
 set -e
 
 REPO="ErikHellman/coop-cli"
-INSTALL_DIR="/usr/local/bin"
+INSTALL_DIR="$HOME/.local/bin"
 BINARY="coop-cli"
 
 main() {
@@ -47,12 +47,8 @@ main() {
     echo "Extracting..."
     tar -xzf "${tmpdir}/${archive}" -C "$tmpdir"
 
-    if [ -w "$INSTALL_DIR" ]; then
-        mv "${tmpdir}/${BINARY}" "${INSTALL_DIR}/${BINARY}"
-    else
-        echo "Installing to ${INSTALL_DIR} (requires sudo)..."
-        sudo mv "${tmpdir}/${BINARY}" "${INSTALL_DIR}/${BINARY}"
-    fi
+    mkdir -p "$INSTALL_DIR"
+    mv "${tmpdir}/${BINARY}" "${INSTALL_DIR}/${BINARY}"
 
     chmod +x "${INSTALL_DIR}/${BINARY}"
 
