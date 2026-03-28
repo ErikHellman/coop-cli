@@ -100,16 +100,62 @@ coop-cli update       # Update to the latest release
 coop-cli --version    # Show current version
 ```
 
-## Releasing
+## Local Development
 
-Releases are built automatically by GitHub Actions when a version tag is pushed:
+### Prerequisites
+
+- [Go](https://go.dev/dl/) (version specified in `go.mod`)
+
+### Build and run
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+go build ./...          # Build all packages
+go run . <command>      # Run a command directly without installing
+go vet ./...            # Lint
 ```
 
-[GoReleaser](https://goreleaser.com/) cross-compiles binaries for Linux, macOS, and Windows (amd64 and arm64).
+### Running tests
+
+Integration tests require real Coop credentials:
+
+```bash
+export COOP_EMAIL=user@example.com
+export COOP_PASSWORD=secret
+
+go test -run TestIntegration -count=1 -v -timeout 120s ./...
+```
+
+### Project structure
+
+```
+main.go                     Entrypoint, sets version info from ldflags
+cmd/                        CLI commands (cobra)
+internal/auth/              OIDC login flow
+internal/api/               HTTP client and API wrappers
+internal/models/            Shared data structures
+```
+
+Version info (`version`, `commit`, `date`) is injected via ldflags at build time. During local development these default to `dev`, `none`, and `unknown`.
+
+## Releasing
+
+Releases are built automatically by [GitHub Actions](https://github.com/ErikHellman/coop-cli/actions/workflows/release.yml) when a version tag is pushed:
+
+1. Make sure all changes are merged to `main` and CI is green.
+2. Tag the release and push:
+
+```bash
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+3. The release workflow runs [GoReleaser](https://goreleaser.com/) which cross-compiles binaries for Linux, macOS, and Windows (amd64 and arm64) and creates a GitHub release with the artifacts.
+
+To test the release process locally (without publishing):
+
+```bash
+goreleaser release --snapshot --clean
+```
 
 ## License
 
