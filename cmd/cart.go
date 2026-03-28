@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"text/tabwriter"
 
+	"github.com/ErikHellman/coop-cli/internal/models"
 	"github.com/spf13/cobra"
 )
 
@@ -29,30 +30,7 @@ var cartListCmd = &cobra.Command{
 			return fmt.Errorf("failed to get cart: %w", err)
 		}
 
-		if len(cart.Entries) == 0 {
-			fmt.Printf("Cart is empty. (Store: %s)\n", cart.CoopStore.Name)
-			return nil
-		}
-
-		fmt.Printf("Shopping cart at %s (%d items):\n\n", cart.CoopStore.Name, cart.TotalItems)
-
-		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "ID\tPRODUCT\tQTY\tUNIT PRICE\tTOTAL")
-		fmt.Fprintln(w, "--\t-------\t---\t----------\t-----")
-
-		for _, entry := range cart.Entries {
-			fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%s\n",
-				entry.Product.Code,
-				entry.Product.Name,
-				entry.Quantity,
-				entry.BasePrice.FormattedValue,
-				entry.TotalPrice.FormattedValue,
-			)
-		}
-		w.Flush()
-
-		fmt.Printf("\nSubtotal: %s\n", cart.SubTotal.FormattedValue)
-		fmt.Printf("Total:    %s\n", cart.TotalPrice.FormattedValue)
+		printCart(cart)
 		return nil
 	},
 }
@@ -78,13 +56,13 @@ var cartAddCmd = &cobra.Command{
 			return err
 		}
 
-		result, err := client.AddToCart(productID, quantity)
+		cart, err := client.AddToCart(productID, quantity)
 		if err != nil {
 			return fmt.Errorf("failed to add to cart: %w", err)
 		}
 
-		fmt.Printf("Added %s (qty: %d) to cart. Status: %s\n",
-			result.Entry.Product.Name, result.Quantity, result.StatusCode)
+		fmt.Printf("Added %s to cart.\n\n", productID)
+		printCart(cart)
 		return nil
 	},
 }
@@ -101,12 +79,13 @@ var cartRemoveCmd = &cobra.Command{
 			return err
 		}
 
-		err = client.RemoveFromCart(productID)
+		cart, err := client.RemoveFromCart(productID)
 		if err != nil {
 			return fmt.Errorf("failed to remove from cart: %w", err)
 		}
 
-		fmt.Printf("Removed product %s from cart.\n", productID)
+		fmt.Printf("Removed %s from cart.\n\n", productID)
+		printCart(cart)
 		return nil
 	},
 }
@@ -138,3 +117,29 @@ func init() {
 	rootCmd.AddCommand(cartCmd)
 }
 
+func printCart(cart *models.CartResponse) {
+	if len(cart.Entries) == 0 {
+		fmt.Printf("Cart is empty. (Store: %s)\n", cart.CoopStore.Name)
+		return
+	}
+
+	fmt.Printf("Shopping cart at %s (%d items):\n\n", cart.CoopStore.Name, cart.TotalItems)
+
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "ID\tPRODUCT\tQTY\tUNIT PRICE\tTOTAL")
+	fmt.Fprintln(w, "--\t-------\t---\t----------\t-----")
+
+	for _, entry := range cart.Entries {
+		fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%s\n",
+			entry.Product.Code,
+			entry.Product.Name,
+			entry.Quantity,
+			entry.BasePrice.FormattedValue,
+			entry.TotalPrice.FormattedValue,
+		)
+	}
+	w.Flush()
+
+	fmt.Printf("\nSubtotal: %s\n", cart.SubTotal.FormattedValue)
+	fmt.Printf("Total:    %s\n", cart.TotalPrice.FormattedValue)
+}

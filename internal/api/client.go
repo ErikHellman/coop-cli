@@ -13,7 +13,9 @@ import (
 const (
 	hybrisBaseURL      = "https://external.api.coop.se/ecommerce/coop"
 	personalizationURL = "https://external.api.coop.se/personalization"
+	storeBaseURL       = "https://proxy.api.coop.se/external/store"
 	subscriptionKey    = "3becf0ce306f41a1ae94077c16798187"
+	storeSubKey        = "990520e65cc44eef89e9e9045b57f4e9"
 	APIVersion         = "v1"
 )
 
@@ -30,9 +32,10 @@ func NewClient(session *auth.Session, storeID string) *Client {
 }
 
 type requestOpts struct {
-	baseURL    string
-	addAuth    bool
-	apiVersion string
+	baseURL        string
+	addAuth        bool
+	apiVersion     string
+	subscriptionKey string
 }
 
 func (c *Client) doRequest(method, path, body string, opts requestOpts) ([]byte, error) {
@@ -58,7 +61,11 @@ func (c *Client) doRequest(method, path, body string, opts requestOpts) ([]byte,
 		return nil, err
 	}
 
-	req.Header.Set("Ocp-Apim-Subscription-Key", subscriptionKey)
+	subKey := opts.subscriptionKey
+	if subKey == "" {
+		subKey = subscriptionKey
+	}
+	req.Header.Set("Ocp-Apim-Subscription-Key", subKey)
 	req.Header.Set("Accept", "application/json")
 	if body != "" {
 		req.Header.Set("Content-Type", "application/json")
@@ -98,3 +105,4 @@ func (c *Client) doPersonalization(method, path, body string) ([]byte, error) {
 		baseURL: personalizationURL,
 	})
 }
+

@@ -97,8 +97,17 @@ type CoopStore struct {
 	Name string `json:"name"`
 }
 
-type CartModification struct {
-	StatusCode string    `json:"statusCode"`
-	Quantity   int       `json:"quantity"`
-	Entry      CartEntry `json:"entry"`
+type Store struct {
+	StoreID             int     `json:"storeId"`
+	LedgerAccountNumber string  `json:"ledgerAccountNumber"`
+	Name                string  `json:"name"`
+	Address             string  `json:"address"`
+	City                string  `json:"city"`
+	PostalCode          string  `json:"postalCode"`
+	Phone               string  `json:"phone"`
+	OpeningHoursToday   string  `json:"openingHoursToday"`
+	Latitude            float64 `json:"latitude"`
+	Longitude           float64 `json:"longitude"`
+	URL                 string  `json:"url"`
 }
+
